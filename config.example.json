@@ -1,0 +1,32 @@
+{
+  "tools": {
+    "enabledTags": [
+      "project",
+      "environment",
+      "server",
+      "application",
+      "compose",
+      "domain",
+      "deployment",
+      "previewDeployment",
+      "postgres",
+      "docker"
+    ]
+  },
+  "env": {
+    "DOKPLOY_REDACT_ENV": "true"
+  },
+  "instances": {
+    "staging": {
+      "url": "https://dokploy-staging.example.com",
+      "apiKeyEnv": "DOKPLOY_STAGING_API_KEY",
+      "description": "Staging; hosts the PR preview deployments"
+    },
+    "production": {
+      "url": "https://dokploy.example.com",
+      "apiKey": "paste-key-here",
+      "description": "Production",
+      "protected": true
+    }
+  }
+}

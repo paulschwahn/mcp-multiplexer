@@ -1,0 +1,42 @@
+{
+  "name": "dokploy-bundle-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "One MCP server for many Dokploy instances: proxies @dokploy/mcp with a required `instance` argument",
+  "license": "MIT",
+  "author": "Paul Schwahn",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paulschwahn/dokploy-bundle-mcp.git"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "dokploy",
+    "claude"
+  ],
+  "type": "module",
+  "bin": {
+    "dokploy-bundle-mcp": "dist/index.js",
+    "dokploy-bundle-hook": "dist/hook.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/build-catalog.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/index.js",
+    "import-desktop-config": "node scripts/import-desktop-config.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@dokploy/mcp": "0.30.7",
+    "@modelcontextprotocol/sdk": "^1.32.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}
