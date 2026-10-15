@@ -15,13 +15,15 @@ export interface HookInput {
 export function decide(input: HookInput, config: BundleConfig | Error, catalog: ToolCatalog | undefined): string | undefined {
   const toolName = input.tool_name ?? "";
   const tool = toolName.slice(toolName.lastIndexOf("__") + 2);
-  const instance = input.tool_input?.instance;
-  if (typeof instance !== "string" || tool.startsWith("bundle-")) return undefined;
+  if (tool.startsWith("bundle-")) return undefined;
   if (config instanceof Error) {
-    return `Could not load the dokploy-bundle config to check whether "${instance}" is protected: ${config.message}`;
+    // Without the config there's no telling which argument names the instance or whether it's protected.
+    return `Could not load the bundle config to check whether this call needs approval: ${config.message}`;
   }
+  const instance = input.tool_input?.[config.argument];
+  if (typeof instance !== "string") return undefined;
   if (!config.instances.find((candidate) => candidate.name === instance)?.protected) return undefined;
   const hints = catalog?.[tool];
   if (hints?.readOnlyHint) return undefined;
-  return `"${instance}" is a protected Dokploy instance and ${tool} ${hints ? "can change it" : "is not in the read-only catalog"}.`;
+  return `"${instance}" is protected and ${tool} ${hints ? "can change it" : "is not in the read-only catalog"}.`;
 }

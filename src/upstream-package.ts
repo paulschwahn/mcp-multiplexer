@@ -4,7 +4,6 @@ import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
-import type { UpstreamConfig } from "./config.js";
 import { cacheDir } from "./paths.js";
 
 const require = createRequire(import.meta.url);
@@ -16,6 +15,9 @@ const ENTRY = ["node_modules", "@dokploy", "mcp", "build", "index.js"];
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const KEEP_VERSIONS = 3;
 const NPM_TIMEOUT_MS = 120_000;
+
+/** A Dokploy bundle's upstream: an @dokploy/mcp version spec, or a replacement command. */
+export type PackageSpec = { version: string } | { command: string; args: string[] };
 
 export interface Upstream {
   command: string;
@@ -37,7 +39,7 @@ export interface ResolveDeps {
  * newest release when the client started the server. When npm or the registry is unreachable it falls back
  * to the newest cached version, then to the bundled one.
  */
-export async function resolveUpstream(config: UpstreamConfig, deps: Partial<ResolveDeps> = {}): Promise<Upstream> {
+export async function resolveUpstream(config: PackageSpec, deps: Partial<ResolveDeps> = {}): Promise<Upstream> {
   if ("command" in config) {
     return { ...config, label: `custom command: ${[config.command, ...config.args].join(" ")}` };
   }

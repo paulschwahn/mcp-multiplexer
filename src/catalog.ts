@@ -11,12 +11,12 @@ export interface CatalogFile {
   tools: ToolCatalog;
 }
 
-/** Written by the server each time it lists tools, so the hook matches the upstream version that is running. */
-export function runtimeCatalogPath(env: NodeJS.ProcessEnv = process.env): string {
-  return join(cacheDir(env), "catalog.json");
+/** Written by the server each time it lists tools, so the hook matches the upstream that is running. */
+export function runtimeCatalogPath(bundle: string, env: NodeJS.ProcessEnv = process.env): string {
+  return join(cacheDir(env), "catalogs", `${bundle}.json`);
 }
 
-/** Written at build time from the bundled upstream; the hook falls back to it. */
+/** Written at build time from the bundled @dokploy/mcp; the hook falls back to it for Dokploy bundles. */
 export const BUNDLED_CATALOG = new URL("./catalog.json", import.meta.url);
 
 export function writeCatalog(path: string, upstream: string, tools: Tool[]): void {

@@ -2,7 +2,7 @@
   "name": "dokploy-bundle-mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "One MCP server for many Dokploy instances: proxies @dokploy/mcp with a required `instance` argument",
+  "description": "One MCP server for many instances of the same MCP server (Dokploy instances, Linear workspaces, …): adds a required routing argument instead of multiplying tools",
   "license": "MIT",
   "author": "Paul Schwahn",
   "repository": {
@@ -13,7 +13,9 @@
     "mcp",
     "model-context-protocol",
     "dokploy",
-    "claude"
+    "linear",
+    "claude",
+    "multiplexer"
   ],
   "type": "module",
   "bin": {
@@ -32,7 +34,8 @@
   },
   "dependencies": {
     "@dokploy/mcp": "0.30.7",
-    "@modelcontextprotocol/sdk": "^1.32.1"
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "mcp-remote": "0.14.3"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

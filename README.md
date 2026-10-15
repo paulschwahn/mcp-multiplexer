@@ -1,16 +1,21 @@
 # dokploy-bundle-mcp
 
-One MCP server for all your [Dokploy](https://dokploy.com) instances.
+One MCP server for all your [Dokploy](https://dokploy.com) instances, or for all your accounts on any other MCP
+server, such as several [Linear](https://linear.app) workspaces.
 
-It wraps the official [`@dokploy/mcp`](https://www.npmjs.com/package/@dokploy/mcp) server and adds a required
-`instance` argument to every tool. Your MCP client (Claude Desktop, Claude Code or any other) then sees one set
-of Dokploy tools, however many instances you run.
+It runs one upstream connection per instance and adds a required argument to every tool (`instance`,
+`workspace` or a name you pick) that says which instance the call goes to. Your MCP client (Claude Desktop,
+Claude Code or any other) sees one set of tools, however many instances you have.
+
+For Dokploy, the bundle wraps the official [`@dokploy/mcp`](https://www.npmjs.com/package/@dokploy/mcp).
+[Other MCP servers](#other-mcp-servers) can be any stdio command or remote URL, with per-instance headers or a
+per-instance OAuth login.
 
 ## Why
 
-If you register `@dokploy/mcp` once per instance, every instance adds its own copy of all 604 tools. Claude
-Code lists every tool name in context at session start, even when it defers the schemas. So each new instance
-costs about 8k tokens before you've typed anything.
+If you register an MCP server once per instance, every instance adds its own copy of all its tools. Claude Code
+lists every tool name in context at session start, even when it defers the schemas. `@dokploy/mcp` has 604
+tools, so each Dokploy instance costs about 8k tokens before you've typed anything.
 
 | Setup | Tool names | ≈ Tokens |
 |---|---|---|
@@ -18,12 +23,14 @@ costs about 8k tokens before you've typed anything.
 | This bundle, all tools | 606 | 6k |
 | This bundle, tags from `config.example.json` | 159 | 1.6k |
 
-With the bundle, that cost stays the same however many instances you add.
+With the bundle, that cost stays the same however many instances you add. Built-in connectors often reach only
+one account; Linear's, for example, connects to a single workspace. The bundle reaches all of them through one
+connection.
 
 ## Requirements
 
 - Node.js 20 or newer, and pnpm (npm works too)
-- A Dokploy API key for each instance. You generate these in Dokploy under your profile settings.
+- For Dokploy: an API key for each instance. You generate these in Dokploy under your profile settings.
 
 ## Install
 
@@ -37,8 +44,9 @@ cd dokploy-bundle-mcp && pnpm install && pnpm build
 
 ## Configure
 
-The server reads `~/.config/dokploy-bundle-mcp/config.json`. To use a different file, set
-`DOKPLOY_BUNDLE_CONFIG`.
+Each bundle has its own config file. The server reads the file you pass with `--config`, then
+`DOKPLOY_BUNDLE_CONFIG`, then `~/.config/dokploy-bundle-mcp/config.json`. The examples below are for Dokploy,
+the default type; see [Other MCP servers](#other-mcp-servers) for the rest.
 
 ```json
 {
@@ -85,15 +93,20 @@ argument.
 
 | Field | Meaning |
 |---|---|
-| `instances.<name>` | One entry per Dokploy instance. Names may only use `a-z`, `0-9` and `-`. |
-| `.url` | Dokploy base URL. A trailing `/api` is stripped, because upstream adds it. |
-| `.apiKey` / `.apiKeyEnv` | The key itself, or the name of an environment variable that holds it. Exactly one is required. |
-| `.description` | Shown by `bundle-instances`. It helps Claude pick the right instance, so say what runs there. |
+| `type` | `dokploy` (default), `command` or `url`. See [Other MCP servers](#other-mcp-servers). |
+| `name` | Names this bundle's cache files. Defaults to the config file's name, e.g. `linear` for `linear.json`. |
+| `argument` | The routing argument added to every tool. Defaults to `instance`. |
+| `instances.<name>` | One entry per instance. Names may only use `a-z`, `0-9` and `-`. |
+| `.description` | Shown by `bundle-instances`. It helps Claude pick the right instance, so say what it is. |
 | `.protected` | Changes need your approval (see [Protect production](#protect-production)). |
-| `.env` | Extra upstream variables for this instance, e.g. `DOKPLOY_TIMEOUT`. |
-| `env` | Upstream variables for every instance, e.g. `DOKPLOY_REDACT_ENV`. |
-| `tools` | Which tools to expose (see below). It applies to all instances. |
-| `upstream.version` | Which `@dokploy/mcp` to run: `bundled` (default), `latest`, a range or an exact version (see [Upgrading](#upgrading-dokploymcp)). |
+| `.env` | Extra environment for this instance's upstream process. |
+| `.url` (dokploy) | Dokploy base URL. A trailing `/api` is stripped, because upstream adds it. |
+| `.apiKey` / `.apiKeyEnv` (dokploy) | The key itself, or the name of an environment variable that holds it. Exactly one is required. |
+| `env` | Environment for every instance's upstream, e.g. `DOKPLOY_REDACT_ENV`. |
+| `tools` (dokploy) | Which tools to expose (see below). It applies to all instances. |
+| `upstream.version` (dokploy) | Which `@dokploy/mcp` to run: `bundled` (default), `latest`, a range or an exact version (see [Upgrading](#upgrading-dokploymcp)). |
+
+Unknown fields are rejected, so a typo fails at startup rather than being silently ignored.
 
 ### Choosing tools
 
@@ -141,13 +154,10 @@ Before you switch, know two things:
 - **Upstream is still 0.x**, so a minor release can rename or remove tools. This repo's tests only cover the
   bundled version.
 
-The approval hook follows along: each time the server lists tools, it writes the read-only list for the
-version it runs to `~/.cache/dokploy-bundle-mcp/catalog.json`.
-
 ## Connect your client
 
-The server talks MCP over stdio. Name it `dokploy`: the name becomes the tool prefix (`mcp__dokploy__…`)
-and the hook below matches on it.
+The server talks MCP over stdio. The name you register it under becomes the tool prefix, so Dokploy registered
+as `dokploy` gives `mcp__dokploy__…`. The approval hook below matches on that name.
 
 **Claude Desktop.** Quit the app completely first, because it rewrites its config while running. Then add
 this to `claude_desktop_config.json` and start the app again:
@@ -161,8 +171,9 @@ this to `claude_desktop_config.json` and start the app again:
 }
 ```
 
-Claude Desktop doesn't load your shell's `PATH`, so give node's absolute path (`which node`). This matters
-especially if you use nvm.
+For a second bundle, add another entry with `"--config", "/path/to/its-config.json"` after `index.js` in
+`args`. Claude Desktop doesn't load your shell's `PATH`, so give node's absolute path (`which node`). This
+matters especially if you use nvm.
 
 **Claude Code:**
 
@@ -170,7 +181,8 @@ especially if you use nvm.
 claude mcp add dokploy --scope user -- "$(which node)" /path/to/dokploy-bundle-mcp/dist/index.js
 ```
 
-**Any other MCP client:** run `node /path/to/dokploy-bundle-mcp/dist/index.js` as a stdio server.
+**Any other MCP client:** run `node /path/to/dokploy-bundle-mcp/dist/index.js [--config <file>]` as a stdio
+server.
 
 ## Use it
 
@@ -182,20 +194,76 @@ After that, just ask for what you want and name the instance:
 - *"Show the last deployments of the api app on staging."*
 - *"Redeploy the web compose on production."* On a protected instance, this asks for your approval first.
 
-Every Dokploy tool takes a required `instance` argument, and there is no default. Claude has to choose an
-instance on every call, and an unknown name is rejected with the list of valid ones. Two tools come from the
-bundle itself:
+Every tool takes the required routing argument, and there is no default. Claude has to choose an instance on
+every call, and an unknown name is rejected with the list of valid ones. Two tools come from the bundle itself:
 
 | Tool | What it does |
 |---|---|
-| `bundle-instances` | Lists name, URL, description, whether it's protected, and whether a connection is open. Never shows keys. |
-| `bundle-check` | Checks that one instance, or all of them, is reachable and accepts its key. Returns the Dokploy version. |
+| `bundle-instances` | Lists name, description, whether it's protected, whether a connection is open, and what serves the instances. Never shows keys or header values. |
+| `bundle-check` | Checks one instance, or all of them. For Dokploy it returns the version; for other types it calls `checkTool` or pings. |
+
+## Other MCP servers
+
+Set `type` to bundle a server other than Dokploy. Every instance must serve the same tools: the bundle lists them
+from the first instance that connects.
+
+| `type` | `upstream` | Per instance |
+|---|---|---|
+| `command` | `{ "command": "…", "args": [ … ] }`: any stdio server | `args` (appended), `env` |
+| `url` | `{ "url": "…" }`: a remote server, using headers | `headers`; `${VAR}` in a value is read from the environment |
+| `url` | `{ "url": "…", "auth": "oauth" }`: a remote server with an OAuth login | `authDir`: where its tokens live |
+
+`checkTool` names a read-only tool that `bundle-check` calls on each instance. Pick one that shows which account
+the instance reached. Without it, `bundle-check` only pings.
+
+OAuth logins go through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), pinned in `package.json`, which
+keeps each instance's tokens in its own directory. By default that's
+`~/.mcp-auth/dokploy-bundle-mcp/<bundle>/<instance>`. Point `authDir` at an existing `MCP_REMOTE_CONFIG_DIR` to
+reuse a login you already have.
+
+### Example: Linear across several workspaces
+
+`~/.config/dokploy-bundle-mcp/linear.json`:
+
+```json
+{
+  "type": "url",
+  "argument": "workspace",
+  "upstream": { "url": "https://mcp.linear.app/mcp", "auth": "oauth" },
+  "checkTool": "get_workspace",
+  "instances": {
+    "acme": { "description": "Acme (linear.app/acme)" },
+    "side-project": { "description": "Side project (linear.app/side)" }
+  }
+}
+```
+
+Register it as a second server:
+
+```bash
+claude mcp add linear --scope user -- "$(which node)" /path/to/dokploy-bundle-mcp/dist/index.js --config ~/.config/dokploy-bundle-mcp/linear.json
+```
+
+Then ask Claude to *"run bundle-check"*. It goes through the workspaces one at a time:
+- A workspace without a login opens Linear's sign-in in your browser.
+- **Choose the workspace that instance is for** on Linear's consent screen. Linear preselects the one you used last.
+- `get_workspace` then shows which workspace each login reached. If one is wrong, delete that instance's token
+  directory and run the check again.
+
+Linear's MCP server may also accept a personal API key instead of OAuth. Third-party docs say so, but Linear's
+own docs don't confirm it:
+
+```json
+"upstream": { "url": "https://mcp.linear.app/mcp" },
+"instances": { "acme": { "headers": { "Authorization": "Bearer ${LINEAR_ACME_API_KEY}" } } }
+```
 
 ## Protect production
 
-A Claude Code `PreToolUse` hook asks for your approval before any tool
-that isn't read-only runs against an instance marked `"protected": true`. Read-only tools still run without
-asking. Add this to `~/.claude/settings.json`:
+A Claude Code `PreToolUse` hook asks for your approval before any tool that isn't read-only runs against an
+instance marked `"protected": true`. Read-only tools still run without asking. Add one entry per bundle to
+`~/.claude/settings.json`. Give each the same `--config` as its server, and a matcher with the name you
+registered that server under:
 
 ```json
 {
@@ -206,60 +274,68 @@ asking. Add this to `~/.claude/settings.json`:
         "hooks": [
           { "type": "command", "command": "/absolute/path/to/node /path/to/dokploy-bundle-mcp/dist/hook.js" }
         ]
+      },
+      {
+        "matcher": "mcp__linear__.*",
+        "hooks": [
+          { "type": "command", "command": "/absolute/path/to/node /path/to/dokploy-bundle-mcp/dist/hook.js --config ~/.config/dokploy-bundle-mcp/linear.json" }
+        ]
       }
     ]
   }
 }
 ```
 
-What counts as read-only is upstream's `readOnlyHint` (226 of the 604 tools in 0.30.7). The hook takes that
-list from `~/.cache/dokploy-bundle-mcp/catalog.json`, which the running server writes for its own version. Until a
-server has started, it uses `dist/catalog.json` from the build. If the hook can't read the config or doesn't
-know a tool, it asks.
+What counts as read-only comes from upstream's `readOnlyHint` annotations: 226 of Dokploy's 604 tools, and 43 of
+Linear's 82. Each time the server lists tools, it writes that list for the upstream it runs to
+`~/.cache/dokploy-bundle-mcp/catalogs/<bundle>.json`. Until a Dokploy server has started, the hook uses
+`dist/catalog.json` from the build. If the hook can't read the config or doesn't know a tool, it asks.
 
 Hooks only run in Claude Code: the CLI, the IDE extensions and the Code tab in Claude Desktop. In other clients,
 `protected` is only a note in the tool description.
 
 ## Troubleshooting
 
-- **The tools don't appear in Claude Desktop.** Check `~/Library/Logs/Claude/mcp-server-dokploy.log` on macOS.
+- **The tools don't appear in Claude Desktop.** Check `~/Library/Logs/Claude/mcp-server-<name>.log` on macOS.
   The usual cause is a node path that isn't absolute. If the config is invalid, the server exits at startup
   with a message naming the field.
 - **`bundle-check` reports `HTTP 401 (API key rejected)`.** The key is wrong or was revoked. A connection error
   means the URL is wrong; it should be the base URL you open in the browser.
-- **One instance fails and the others work.** That's by design, for example when an `apiKeyEnv` variable
-  isn't set. The error names the missing variable.
+- **One instance fails and the others work.** That's by design, for example when an `apiKeyEnv` or `${VAR}`
+  variable isn't set, or a login is missing. The error says which.
+- **An OAuth login doesn't open a browser.** mcp-remote writes the sign-in URL to the server log; open it from
+  there. The login waits for up to five minutes.
 - **A config change has no effect.** The server reads the config at startup, so restart your client.
 - **`upstream.version` isn't the version you expected.** Ask for `bundle-instances`: its `upstream` field shows
   the running version, and if npm failed, the reason it fell back.
-- **The hook doesn't prompt.** Check that its matcher uses the server name from your client config. Then run
-  the hook by hand, adjusting the instance and tool to a protected instance of yours:
+- **The hook doesn't prompt.** Check that its matcher uses the server name from your client config and that it
+  has the same `--config` as the server. Then run it by hand, adjusting the tool and instance to a protected
+  instance of yours:
   ```bash
   echo '{"tool_name":"mcp__dokploy__application-deploy","tool_input":{"instance":"production"}}' | node dist/hook.js
   ```
-  For a protected instance this prints a `permissionDecision: "ask"`. If you set `DOKPLOY_BUNDLE_CONFIG` for the
-  server, the hook needs it too.
+  For a protected instance this prints a `permissionDecision: "ask"`.
 
 ## How it works
 
-- **Listing tools:** the bundle starts a throwaway `@dokploy/mcp` process with a URL that goes nowhere, since
-  listing never calls the API. It takes that process's tool list, puts the required `instance` argument first
-  in each tool, and adds `bundle-instances` and `bundle-check`.
-- **Calling a tool:** the bundle removes `instance` and forwards the call to that instance's own `@dokploy/mcp`
-  process. The process starts on first use and stays running. It gets only its own URL and key, plus PATH,
+- **Listing tools:** the bundle connects to the first instance that works and lists its tools. It puts the
+  required routing argument first in each one, and adds `bundle-instances` and `bundle-check`. A tool that
+  already has an argument with the routing argument's name is skipped, and the skip is logged.
+- **Calling a tool:** the bundle removes the routing argument and forwards the call to that instance's own
+  connection, which opens on first use and stays open. A stdio upstream gets only its own settings, plus PATH,
   HOME and similar, and never sees the other instances' keys.
-- **Why `instance` and not `server`:** Dokploy already uses "server" for its remote build hosts (`serverId`).
+- **Why `instance` and not `server` for Dokploy:** Dokploy already uses "server" for its remote build hosts
+  (`serverId`).
 
 ## Development
 
 ```bash
-pnpm test        # stub upstream, plus the real @dokploy/mcp pointed at a dead URL
+pnpm test        # stub and echo upstreams, an HTTP server, and the real @dokploy/mcp pointed at a dead URL
 pnpm typecheck
 ```
 
 To change the bundled `@dokploy/mcp`, bump it in `package.json` and run `pnpm build`, which regenerates
-`dist/catalog.json`. If a new upstream tool has its own `instance` argument, the server logs it and skips that
-tool.
+`dist/catalog.json`.
 
 ## License
 

@@ -1,11 +1,15 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseConfig, resolveApiKey, toolFilterEnv } from "../src/config.js";
+import { configPath, parseConfig, resolveApiKey, resolveHeaders, toolFilterEnv } from "../src/config.js";
 
 const instance = { url: "https://dokploy.example", apiKey: "key" };
+const linear = { type: "url", upstream: { url: "https://mcp.linear.app/mcp", auth: "oauth" } };
 
 describe("parseConfig", () => {
   it("normalises URLs and fills defaults", () => {
     const config = parseConfig({ instances: { staging: { ...instance, url: "https://dokploy.example/api/" } } });
+    expect(config).toMatchObject({ type: "dokploy", name: "config", argument: "instance", checkTool: undefined });
     expect(config.instances).toEqual([
       {
         name: "staging",
@@ -15,6 +19,8 @@ describe("parseConfig", () => {
         description: undefined,
         protected: false,
         env: {},
+        args: [],
+        headers: {},
       },
     ]);
     expect(config.tools).toEqual({ preset: undefined, enabledTags: [], disabledTags: [] });
@@ -26,6 +32,26 @@ describe("parseConfig", () => {
     expect(parse({ version: "latest" })).toEqual({ version: "latest" });
     expect(parse({})).toEqual({ version: "bundled" });
     expect(parse({ command: "node", args: ["stub.mjs"] })).toEqual({ command: "node", args: ["stub.mjs"] });
+  });
+
+  it("reads url bundles", () => {
+    const config = parseConfig(
+      { ...linear, argument: "workspace", checkTool: "get_workspace", instances: { north: { authDir: "~/tokens" } } },
+      "test",
+      "linear",
+    );
+    expect(config).toMatchObject({
+      type: "url",
+      name: "linear",
+      argument: "workspace",
+      checkTool: "get_workspace",
+      upstream: { url: "https://mcp.linear.app/mcp", auth: "oauth" },
+    });
+    expect(config.instances[0]?.authDir).toBe(join(homedir(), "tokens"));
+    expect(
+      parseConfig({ type: "url", upstream: { url: "https://x.example/mcp" }, instances: { a: { headers: { A: "b" } } } })
+        .upstream,
+    ).toEqual({ url: "https://x.example/mcp", auth: "headers" });
   });
 
   it.each([
@@ -41,8 +67,33 @@ describe("parseConfig", () => {
     [{ instances: { staging: { ...instance, env: { DOKPLOY_TIMEOUT: 5000 } } } }, "must be an object of strings"],
     [{ instances: { staging: instance }, upstream: { version: "" } }, `"upstream.version" must be a non-empty string`],
     [{ instances: { staging: instance }, upstream: { version: "latest", command: "node" } }, "not both"],
+    [{ instances: { staging: instance }, typo: true }, `unknown field "typo"`],
+    [{ instances: { staging: { ...instance, headers: {} } } }, `instance "staging" (type "dokploy"): unknown field "headers"`],
+    [{ type: "rest", instances: { staging: instance } }, `"type" must be`],
+    [{ argument: "the instance", instances: { staging: instance } }, `"argument" must be a plain identifier`],
+    [{ name: "My Bundle", instances: { staging: instance } }, `"name" may only use`],
+    [{ instances: { staging: instance }, checkTool: "x" }, `"checkTool" doesn't apply to type "dokploy"`],
+    [{ ...linear, tools: {}, instances: { a: {} } }, `"tools" only applies to type "dokploy"`],
+    [{ type: "url", instances: { a: {} } }, `"upstream" must be an object`],
+    [{ type: "url", upstream: { url: "mcp.linear.app" }, instances: { a: {} } }, `"upstream.url" must start with http`],
+    [{ ...linear, upstream: { url: "https://x.example", auth: "basic" }, instances: { a: {} } }, `"headers" or "oauth"`],
+    [{ ...linear, instances: { a: { headers: { A: "b" } } } }, `"headers" only apply with`],
+    [{ type: "url", upstream: { url: "https://x.example" }, instances: { a: { authDir: "/x" } } }, `"authDir" only applies`],
+    [{ type: "command", instances: { a: {} } }, `"upstream" must be an object`],
+    [{ type: "command", upstream: { args: [] }, instances: { a: {} } }, `"upstream" needs a "command"`],
   ])("rejects %j", (json, message) => {
     expect(() => parseConfig(json, "test")).toThrow(message);
+  });
+});
+
+describe("configPath", () => {
+  it("takes --config first, then DOKPLOY_BUNDLE_CONFIG, and expands ~", () => {
+    expect(configPath({ DOKPLOY_BUNDLE_CONFIG: "/env.json" }, ["--config", "~/linear.json"])).toBe(
+      join(homedir(), "linear.json"),
+    );
+    expect(configPath({ DOKPLOY_BUNDLE_CONFIG: "/env.json" }, [])).toBe("/env.json");
+    expect(configPath({}, [])).toBe(join(homedir(), ".config", "dokploy-bundle-mcp", "config.json"));
+    expect(() => configPath({}, ["--config"])).toThrow("--config needs a path");
   });
 });
 
@@ -55,6 +106,25 @@ describe("resolveApiKey", () => {
 
   it("names the variable when it is missing", () => {
     expect(() => resolveApiKey(fromEnv!, {})).toThrow("environment variable STAGING_KEY is not set");
+  });
+});
+
+describe("resolveHeaders", () => {
+  const [withVars] = parseConfig({
+    type: "url",
+    upstream: { url: "https://x.example/mcp" },
+    instances: { a: { headers: { Authorization: "Bearer ${TOKEN}", "X-Team": "${TEAM}-${TEAM}" } } },
+  }).instances;
+
+  it("fills in environment variables", () => {
+    expect(resolveHeaders(withVars!, { TOKEN: "t", TEAM: "core" })).toEqual({
+      Authorization: "Bearer t",
+      "X-Team": "core-core",
+    });
+  });
+
+  it("names a missing variable", () => {
+    expect(() => resolveHeaders(withVars!, { TEAM: "core" })).toThrow("environment variable TOKEN is not set");
   });
 });
 

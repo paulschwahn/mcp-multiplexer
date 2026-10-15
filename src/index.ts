@@ -27,5 +27,5 @@ process.on("SIGTERM", shutdown);
 process.stdin.on("end", shutdown);
 
 await server.connect(new StdioServerTransport());
-// Start resolving the upstream version now rather than on the first tools/list.
-void pool.upstream();
+// Start resolving the upstream (for Dokploy: which @dokploy/mcp version) now rather than on the first call.
+void pool.label();
