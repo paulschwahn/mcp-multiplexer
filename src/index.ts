@@ -8,7 +8,7 @@ let config: BundleConfig;
 try {
   config = loadConfig();
 } catch (error) {
-  process.stderr.write(`dokploy-bundle-mcp: ${(error as Error).message}\n`);
+  process.stderr.write(`mcp-multiplexer: ${(error as Error).message}\n`);
   process.exit(1);
 }
 

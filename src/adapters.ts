@@ -86,5 +86,5 @@ export function createAdapter(config: BundleConfig, log: Log): Adapter {
 }
 
 export function defaultAuthDir(bundle: string, instance: string): string {
-  return join(homedir(), ".mcp-auth", "dokploy-bundle-mcp", bundle, instance);
+  return join(homedir(), ".mcp-auth", "mcp-multiplexer", bundle, instance);
 }

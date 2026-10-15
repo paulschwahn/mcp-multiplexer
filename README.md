@@ -1,4 +1,6 @@
-# dokploy-bundle-mcp
+# mcp-multiplexer
+
+*Formerly `dokploy-bundle-mcp`.*
 
 One MCP server for all your [Dokploy](https://dokploy.com) instances, or for all your accounts on any other MCP
 server, such as several [Linear](https://linear.app) workspaces.
@@ -35,17 +37,17 @@ connection.
 ## Install
 
 ```bash
-git clone https://github.com/paulschwahn/dokploy-bundle-mcp.git
+git clone https://github.com/paulschwahn/mcp-multiplexer.git
 ```
 
 ```bash
-cd dokploy-bundle-mcp && pnpm install && pnpm build
+cd mcp-multiplexer && pnpm install && pnpm build
 ```
 
 ## Configure
 
 Each bundle has its own config file. The server reads the file you pass with `--config`, then
-`DOKPLOY_BUNDLE_CONFIG`, then `~/.config/dokploy-bundle-mcp/config.json`. The examples below are for Dokploy,
+`MCP_MULTIPLEXER_CONFIG`, then `~/.config/mcp-multiplexer/config.json`. The examples below are for Dokploy,
 the default type; see [Other MCP servers](#other-mcp-servers) for the rest.
 
 ```json
@@ -142,7 +144,7 @@ instead, set `upstream.version`:
 How it works:
 - **Checked once per start.** When your client starts the server, the bundle asks npm which version the spec
   resolves to. A running session never switches versions.
-- **Installed once per version.** A new version is installed into `~/.cache/dokploy-bundle-mcp/upstream/<version>`
+- **Installed once per version.** A new version is installed into `~/.cache/mcp-multiplexer/upstream/<version>`
   with `--ignore-scripts`. The three newest versions are kept.
 - **Falls back when offline.** If npm or the registry can't be reached, the bundle uses the newest cached
   version, or else the bundled one.
@@ -166,7 +168,7 @@ this to `claude_desktop_config.json` and start the app again:
 "mcpServers": {
   "dokploy": {
     "command": "/absolute/path/to/node",
-    "args": ["/path/to/dokploy-bundle-mcp/dist/index.js"]
+    "args": ["/path/to/mcp-multiplexer/dist/index.js"]
   }
 }
 ```
@@ -178,10 +180,10 @@ matters especially if you use nvm.
 **Claude Code:**
 
 ```bash
-claude mcp add dokploy --scope user -- "$(which node)" /path/to/dokploy-bundle-mcp/dist/index.js
+claude mcp add dokploy --scope user -- "$(which node)" /path/to/mcp-multiplexer/dist/index.js
 ```
 
-**Any other MCP client:** run `node /path/to/dokploy-bundle-mcp/dist/index.js [--config <file>]` as a stdio
+**Any other MCP client:** run `node /path/to/mcp-multiplexer/dist/index.js [--config <file>]` as a stdio
 server.
 
 ## Use it
@@ -218,12 +220,12 @@ the instance reached. Without it, `bundle-check` only pings.
 
 OAuth logins go through [`mcp-remote`](https://www.npmjs.com/package/mcp-remote), pinned in `package.json`, which
 keeps each instance's tokens in its own directory. By default that's
-`~/.mcp-auth/dokploy-bundle-mcp/<bundle>/<instance>`. Point `authDir` at an existing `MCP_REMOTE_CONFIG_DIR` to
+`~/.mcp-auth/mcp-multiplexer/<bundle>/<instance>`. Point `authDir` at an existing `MCP_REMOTE_CONFIG_DIR` to
 reuse a login you already have.
 
 ### Example: Linear across several workspaces
 
-`~/.config/dokploy-bundle-mcp/linear.json`:
+`~/.config/mcp-multiplexer/linear.json`:
 
 ```json
 {
@@ -241,7 +243,7 @@ reuse a login you already have.
 Register it as a second server:
 
 ```bash
-claude mcp add linear --scope user -- "$(which node)" /path/to/dokploy-bundle-mcp/dist/index.js --config ~/.config/dokploy-bundle-mcp/linear.json
+claude mcp add linear --scope user -- "$(which node)" /path/to/mcp-multiplexer/dist/index.js --config ~/.config/mcp-multiplexer/linear.json
 ```
 
 Then ask Claude to *"run bundle-check"*. It goes through the workspaces one at a time:
@@ -272,13 +274,13 @@ registered that server under:
       {
         "matcher": "mcp__dokploy__.*",
         "hooks": [
-          { "type": "command", "command": "/absolute/path/to/node /path/to/dokploy-bundle-mcp/dist/hook.js" }
+          { "type": "command", "command": "/absolute/path/to/node /path/to/mcp-multiplexer/dist/hook.js" }
         ]
       },
       {
         "matcher": "mcp__linear__.*",
         "hooks": [
-          { "type": "command", "command": "/absolute/path/to/node /path/to/dokploy-bundle-mcp/dist/hook.js --config ~/.config/dokploy-bundle-mcp/linear.json" }
+          { "type": "command", "command": "/absolute/path/to/node /path/to/mcp-multiplexer/dist/hook.js --config ~/.config/mcp-multiplexer/linear.json" }
         ]
       }
     ]
@@ -288,7 +290,7 @@ registered that server under:
 
 What counts as read-only comes from upstream's `readOnlyHint` annotations: 226 of Dokploy's 604 tools, and 43 of
 Linear's 82. Each time the server lists tools, it writes that list for the upstream it runs to
-`~/.cache/dokploy-bundle-mcp/catalogs/<bundle>.json`. Until a Dokploy server has started, the hook uses
+`~/.cache/mcp-multiplexer/catalogs/<bundle>.json`. Until a Dokploy server has started, the hook uses
 `dist/catalog.json` from the build. If the hook can't read the config or doesn't know a tool, it asks.
 
 Hooks only run in Claude Code: the CLI, the IDE extensions and the Code tab in Claude Desktop. In other clients,

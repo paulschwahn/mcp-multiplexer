@@ -34,7 +34,7 @@ const fakeFetch: typeof fetch = async (input, init) => {
     : new Response("unauthorized", { status: 401 });
 };
 
-const catalogPath = join(mkdtempSync(join(tmpdir(), "dokploy-bundle-test-")), "catalog.json");
+const catalogPath = join(mkdtempSync(join(tmpdir(), "mcp-multiplexer-test-")), "catalog.json");
 let pool: UpstreamPool;
 let client: Client;
 

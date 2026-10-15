@@ -87,12 +87,12 @@ describe("parseConfig", () => {
 });
 
 describe("configPath", () => {
-  it("takes --config first, then DOKPLOY_BUNDLE_CONFIG, and expands ~", () => {
-    expect(configPath({ DOKPLOY_BUNDLE_CONFIG: "/env.json" }, ["--config", "~/linear.json"])).toBe(
+  it("takes --config first, then MCP_MULTIPLEXER_CONFIG, and expands ~", () => {
+    expect(configPath({ MCP_MULTIPLEXER_CONFIG: "/env.json" }, ["--config", "~/linear.json"])).toBe(
       join(homedir(), "linear.json"),
     );
-    expect(configPath({ DOKPLOY_BUNDLE_CONFIG: "/env.json" }, [])).toBe("/env.json");
-    expect(configPath({}, [])).toBe(join(homedir(), ".config", "dokploy-bundle-mcp", "config.json"));
+    expect(configPath({ MCP_MULTIPLEXER_CONFIG: "/env.json" }, [])).toBe("/env.json");
+    expect(configPath({}, [])).toBe(join(homedir(), ".config", "mcp-multiplexer", "config.json"));
     expect(() => configPath({}, ["--config"])).toThrow("--config needs a path");
   });
 });

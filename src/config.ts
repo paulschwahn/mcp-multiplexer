@@ -76,9 +76,9 @@ const INSTANCE_FIELDS: Record<BundleType, string[]> = {
   url: ["headers", "authDir"],
 };
 
-export const DEFAULT_CONFIG_PATH = join(homedir(), ".config", "dokploy-bundle-mcp", "config.json");
+export const DEFAULT_CONFIG_PATH = join(homedir(), ".config", "mcp-multiplexer", "config.json");
 
-/** `--config <path>`, then DOKPLOY_BUNDLE_CONFIG, then the default path. */
+/** `--config <path>`, then MCP_MULTIPLEXER_CONFIG, then the default path. */
 export function configPath(env: NodeJS.ProcessEnv = process.env, argv: string[] = process.argv.slice(2)): string {
   const flag = argv.indexOf("--config");
   if (flag >= 0) {
@@ -86,7 +86,7 @@ export function configPath(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     if (!path) throw new Error("--config needs a path");
     return expandHome(path);
   }
-  return env.DOKPLOY_BUNDLE_CONFIG ? expandHome(env.DOKPLOY_BUNDLE_CONFIG) : DEFAULT_CONFIG_PATH;
+  return env.MCP_MULTIPLEXER_CONFIG ? expandHome(env.MCP_MULTIPLEXER_CONFIG) : DEFAULT_CONFIG_PATH;
 }
 
 export function expandHome(path: string): string {

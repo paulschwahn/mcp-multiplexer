@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 const args = process.argv.slice(2);
 const force = args.includes("--force");
 const desktopPath = args.find((arg) => !arg.startsWith("--")) ?? defaultDesktopConfigPath();
-const outPath = process.env.DOKPLOY_BUNDLE_CONFIG || join(homedir(), ".config", "dokploy-bundle-mcp", "config.json");
+const outPath = process.env.MCP_MULTIPLEXER_CONFIG || join(homedir(), ".config", "mcp-multiplexer", "config.json");
 
 function defaultDesktopConfigPath() {
   const file = "claude_desktop_config.json";

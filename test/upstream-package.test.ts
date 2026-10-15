@@ -10,7 +10,7 @@ let dir: string;
 let calls: string[][];
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "dokploy-bundle-upstream-"));
+  dir = mkdtempSync(join(tmpdir(), "mcp-multiplexer-upstream-"));
   calls = [];
 });
 

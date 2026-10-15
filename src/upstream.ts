@@ -110,7 +110,7 @@ export class UpstreamPool {
       });
       transport = stdio;
     }
-    const client = new Client({ name: "dokploy-bundle-mcp", version: VERSION });
+    const client = new Client({ name: "mcp-multiplexer", version: VERSION });
     const timeout = connection.kind === "stdio" ? connection.initTimeoutMs : undefined;
     await client.connect(transport, timeout ? { timeout } : undefined);
     return client;

@@ -1,5 +1,5 @@
 {
-  "name": "dokploy-bundle-mcp",
+  "name": "mcp-multiplexer",
   "version": "0.1.0",
   "private": true,
   "description": "One MCP server for many instances of the same MCP server (Dokploy instances, Linear workspaces, …): adds a required routing argument instead of multiplying tools",
@@ -7,7 +7,7 @@
   "author": "Paul Schwahn",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/paulschwahn/dokploy-bundle-mcp.git"
+    "url": "git+https://github.com/paulschwahn/mcp-multiplexer.git"
   },
   "keywords": [
     "mcp",
@@ -19,8 +19,8 @@
   ],
   "type": "module",
   "bin": {
-    "dokploy-bundle-mcp": "dist/index.js",
-    "dokploy-bundle-hook": "dist/hook.js"
+    "mcp-multiplexer": "dist/index.js",
+    "mcp-multiplexer-hook": "dist/hook.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/build-catalog.mjs",
