@@ -18,6 +18,14 @@ describe("parseConfig", () => {
       },
     ]);
     expect(config.tools).toEqual({ preset: undefined, enabledTags: [], disabledTags: [] });
+    expect(config.upstream).toEqual({ version: "bundled" });
+  });
+
+  it("reads an upstream version or command", () => {
+    const parse = (upstream: unknown) => parseConfig({ instances: { staging: instance }, upstream }).upstream;
+    expect(parse({ version: "latest" })).toEqual({ version: "latest" });
+    expect(parse({})).toEqual({ version: "bundled" });
+    expect(parse({ command: "node", args: ["stub.mjs"] })).toEqual({ command: "node", args: ["stub.mjs"] });
   });
 
   it.each([
@@ -31,6 +39,8 @@ describe("parseConfig", () => {
     [{ instances: { staging: { ...instance, protected: "yes" } } }, `"protected" must be true or false`],
     [{ instances: { staging: instance }, tools: { enabledTags: "project" } }, "must be an array of strings"],
     [{ instances: { staging: { ...instance, env: { DOKPLOY_TIMEOUT: 5000 } } } }, "must be an object of strings"],
+    [{ instances: { staging: instance }, upstream: { version: "" } }, `"upstream.version" must be a non-empty string`],
+    [{ instances: { staging: instance }, upstream: { version: "latest", command: "node" } }, "not both"],
   ])("rejects %j", (json, message) => {
     expect(() => parseConfig(json, "test")).toThrow(message);
   });

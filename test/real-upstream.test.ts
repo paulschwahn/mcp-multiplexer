@@ -18,7 +18,7 @@ let client: Client;
 beforeAll(async () => {
   pool = new UpstreamPool(config, () => {});
   const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
-  await createBundleServer(config, pool, { log: () => {} }).connect(serverSide);
+  await createBundleServer(config, pool, { log: () => {}, catalogPath: null }).connect(serverSide);
   client = new Client({ name: "test", version: "0.0.0" });
   await client.connect(clientSide);
 });

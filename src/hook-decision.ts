@@ -1,7 +1,7 @@
+import type { ToolCatalog } from "./catalog.js";
 import type { BundleConfig } from "./config.js";
 
-/** Tool name → upstream annotations, written to dist/catalog.json at build time. */
-export type ToolCatalog = Record<string, { readOnlyHint?: boolean; destructiveHint?: boolean }>;
+export type { ToolCatalog };
 
 export interface HookInput {
   tool_name?: string;

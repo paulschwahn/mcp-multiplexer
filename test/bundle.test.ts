@@ -1,3 +1,6 @@
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
@@ -31,12 +34,13 @@ const fakeFetch: typeof fetch = async (input, init) => {
     : new Response("unauthorized", { status: 401 });
 };
 
+const catalogPath = join(mkdtempSync(join(tmpdir(), "dokploy-bundle-test-")), "catalog.json");
 let pool: UpstreamPool;
 let client: Client;
 
 beforeAll(async () => {
   pool = new UpstreamPool(config, () => {});
-  const server = createBundleServer(config, pool, { fetch: fakeFetch, log: () => {} });
+  const server = createBundleServer(config, pool, { fetch: fakeFetch, log: () => {}, catalogPath });
   const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
   client = new Client({ name: "test", version: "0.0.0" });
@@ -72,6 +76,16 @@ describe("tools/list", () => {
       "project-all",
       "application-deploy",
     ]);
+  });
+
+  it("writes the read-only list of the running upstream for the hook", () => {
+    expect(JSON.parse(readFileSync(catalogPath, "utf8"))).toEqual({
+      upstream: `custom command: ${process.execPath} ${stub}`,
+      tools: {
+        "project-all": { readOnlyHint: true, destructiveHint: false },
+        "application-deploy": { readOnlyHint: false, destructiveHint: false },
+      },
+    });
   });
 });
 
@@ -118,11 +132,12 @@ describe("tools/call", () => {
 });
 
 describe("bundle tools", () => {
-  it("bundle-instances describes instances without exposing keys", async () => {
+  it("bundle-instances describes instances and the upstream without exposing keys", async () => {
     const result = await call("bundle-instances", {});
     expect(result.text).not.toContain("prod-key");
     expect(result.text).not.toContain("staging-key");
-    expect(result.json()).toContainEqual(
+    expect(result.json().upstream).toBe(`custom command: ${process.execPath} ${stub}`);
+    expect(result.json().instances).toContainEqual(
       expect.objectContaining({ name: "staging", apiKey: "from $TEST_DOKPLOY_KEY_STAGING", connected: true }),
     );
   });

@@ -93,6 +93,7 @@ argument.
 | `.env` | Extra upstream variables for this instance, e.g. `DOKPLOY_TIMEOUT`. |
 | `env` | Upstream variables for every instance, e.g. `DOKPLOY_REDACT_ENV`. |
 | `tools` | Which tools to expose (see below). It applies to all instances. |
+| `upstream.version` | Which `@dokploy/mcp` to run: `bundled` (default), `latest`, a range or an exact version (see [Upgrading](#upgrading-dokploymcp)). |
 
 ### Choosing tools
 
@@ -108,6 +109,40 @@ optionally `disabledTags` to drop tags from it.
 | `{ "preset": "databases" }` | postgres, redis, mysql, mariadb, mongo, libsql | 94 |
 | `{ "preset": "git" }` | github, gitlab, bitbucket, gitea, gitProvider, registry, sshKey | 46 |
 | `{}` (default) | everything | 604 |
+
+### Upgrading `@dokploy/mcp`
+
+By default the bundle runs the `@dokploy/mcp` version pinned in `package.json`. To follow upstream releases
+instead, set `upstream.version`:
+
+```json
+{ "upstream": { "version": "latest" } }
+```
+
+| `version` | Runs |
+|---|---|
+| `"bundled"` (default) | the version in `package.json`, updated when you pull this repo and rebuild |
+| `"latest"` | the newest release |
+| `"~0.30.7"` | the newest 0.30.x patch release |
+| `"0.31.2"` | exactly that version |
+
+How it works:
+- **Checked once per start.** When your client starts the server, the bundle asks npm which version the spec
+  resolves to. A running session never switches versions.
+- **Installed once per version.** A new version is installed into `~/.cache/dokploy-bundle-mcp/upstream/<version>`
+  with `--ignore-scripts`. The three newest versions are kept.
+- **Falls back when offline.** If npm or the registry can't be reached, the bundle uses the newest cached
+  version, or else the bundled one.
+- **Easy to check.** `bundle-instances` shows which version is running and why.
+
+Before you switch, know two things:
+- **Every API key goes to whatever version runs.** With `latest`, a new upstream release gets your keys without
+  anyone reviewing it. For production instances, a patch range or `bundled` is the more careful choice.
+- **Upstream is still 0.x**, so a minor release can rename or remove tools. This repo's tests only cover the
+  bundled version.
+
+The approval hook follows along: each time the server lists tools, it writes the read-only list for the
+version it runs to `~/.cache/dokploy-bundle-mcp/catalog.json`.
 
 ## Connect your client
 
@@ -177,8 +212,10 @@ asking. Add this to `~/.claude/settings.json`:
 }
 ```
 
-What counts as read-only is upstream's `readOnlyHint` (226 of the 604 tools). The build writes that list to
-`dist/catalog.json`. If the hook can't read the config or doesn't know a tool, it asks.
+What counts as read-only is upstream's `readOnlyHint` (226 of the 604 tools in 0.30.7). The hook takes that
+list from `~/.cache/dokploy-bundle-mcp/catalog.json`, which the running server writes for its own version. Until a
+server has started, it uses `dist/catalog.json` from the build. If the hook can't read the config or doesn't
+know a tool, it asks.
 
 Hooks only run in Claude Code: the CLI, the IDE extensions and the Code tab in Claude Desktop. In other clients,
 `protected` is only a note in the tool description.
@@ -193,6 +230,8 @@ Hooks only run in Claude Code: the CLI, the IDE extensions and the Code tab in C
 - **One instance fails and the others work.** That's by design, for example when an `apiKeyEnv` variable
   isn't set. The error names the missing variable.
 - **A config change has no effect.** The server reads the config at startup, so restart your client.
+- **`upstream.version` isn't the version you expected.** Ask for `bundle-instances`: its `upstream` field shows
+  the running version, and if npm failed, the reason it fell back.
 - **The hook doesn't prompt.** Check that its matcher uses the server name from your client config. Then run
   the hook by hand, adjusting the instance and tool to a protected instance of yours:
   ```bash
@@ -218,8 +257,9 @@ pnpm test        # stub upstream, plus the real @dokploy/mcp pointed at a dead U
 pnpm typecheck
 ```
 
-To upgrade `@dokploy/mcp`, bump the version and run `pnpm build` again, which regenerates the read-only
-catalog. If a new upstream tool has its own `instance` argument, the server logs it and skips that tool.
+To change the bundled `@dokploy/mcp`, bump it in `package.json` and run `pnpm build`, which regenerates
+`dist/catalog.json`. If a new upstream tool has its own `instance` argument, the server logs it and skips that
+tool.
 
 ## License
 

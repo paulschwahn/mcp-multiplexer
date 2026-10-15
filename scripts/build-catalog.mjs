@@ -1,22 +1,15 @@
-// Writes dist/catalog.json (upstream tool name → annotations) for the protected-instance hook.
-// Runs after tsc, so it can reuse the compiled pool.
-import { readFileSync, writeFileSync } from "node:fs";
+// Writes dist/catalog.json (upstream tool name → annotations) from the bundled upstream. The hook falls back
+// to it until a running server has written the list for its own version. Runs after tsc to reuse dist/.
+import { fileURLToPath } from "node:url";
+import { writeCatalog } from "../dist/catalog.js";
 import { UpstreamPool } from "../dist/upstream.js";
 
-const upstream = JSON.parse(
-  readFileSync(new URL("../node_modules/@dokploy/mcp/package.json", import.meta.url), "utf8"),
+const pool = new UpstreamPool(
+  { instances: [], env: {}, tools: { enabledTags: [], disabledTags: [] }, upstream: { version: "bundled" } },
+  () => {},
 );
-const pool = new UpstreamPool({ instances: [], env: {}, tools: { enabledTags: [], disabledTags: [] } }, () => {});
 const tools = await pool.listTools();
-const catalog = Object.fromEntries(
-  tools.map((tool) => [
-    tool.name,
-    { readOnlyHint: tool.annotations?.readOnlyHint === true, destructiveHint: tool.annotations?.destructiveHint === true },
-  ]),
-);
-writeFileSync(
-  new URL("../dist/catalog.json", import.meta.url),
-  `${JSON.stringify({ upstream: `${upstream.name}@${upstream.version}`, tools: catalog }, null, 2)}\n`,
-);
-const readOnly = Object.values(catalog).filter((hints) => hints.readOnlyHint).length;
-console.log(`dist/catalog.json: ${tools.length} tools, ${readOnly} read-only (${upstream.name}@${upstream.version})`);
+const { label } = await pool.upstream();
+writeCatalog(fileURLToPath(new URL("../dist/catalog.json", import.meta.url)), label, tools);
+const readOnly = tools.filter((tool) => tool.annotations?.readOnlyHint === true).length;
+console.log(`dist/catalog.json: ${tools.length} tools, ${readOnly} read-only (${label})`);

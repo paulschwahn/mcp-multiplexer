@@ -5,6 +5,7 @@ import {
   ListToolsRequestSchema,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
+import { runtimeCatalogPath, writeCatalog } from "./catalog.js";
 import { type BundleConfig, type InstanceConfig, resolveApiKey } from "./config.js";
 import type { Log, UpstreamPool } from "./upstream.js";
 import { VERSION } from "./version.js";
@@ -17,10 +18,16 @@ const CHECK_TIMEOUT_MS = 10_000;
 export interface ServerDeps {
   fetch: typeof fetch;
   log: Log;
+  /** Where to write the read-only list for the hook; null to skip. */
+  catalogPath: string | null;
 }
 
 export function createBundleServer(config: BundleConfig, pool: UpstreamPool, deps: Partial<ServerDeps> = {}): Server {
-  const { fetch: fetchFn = globalThis.fetch, log = (line: string) => process.stderr.write(`${line}\n`) } = deps;
+  const {
+    fetch: fetchFn = globalThis.fetch,
+    log = (line: string) => process.stderr.write(`${line}\n`),
+    catalogPath = runtimeCatalogPath(),
+  } = deps;
   const names = config.instances.map((instance) => instance.name);
   const server = new Server(
     { name: "dokploy-bundle", version: VERSION },
@@ -35,16 +42,22 @@ export function createBundleServer(config: BundleConfig, pool: UpstreamPool, dep
   let catalog: Promise<Map<string, Tool>> | undefined;
   const upstreamTools = (): Promise<Map<string, Tool>> => {
     if (!catalog) {
-      catalog = pool.listTools().then(
-        (tools) =>
-          new Map(
-            tools.flatMap((tool) => {
-              const wrapped = withInstanceArg(tool, config.instances);
-              if (!wrapped) log(`skipping ${tool.name}: it already has an "${INSTANCE_ARG}" argument`);
-              return wrapped ? [[tool.name, wrapped] as const] : [];
-            }),
-          ),
-      );
+      catalog = pool.listTools().then(async (tools) => {
+        if (catalogPath) {
+          try {
+            writeCatalog(catalogPath, (await pool.upstream()).label, tools);
+          } catch (error) {
+            log(`could not write ${catalogPath}: ${(error as Error).message}`);
+          }
+        }
+        return new Map(
+          tools.flatMap((tool) => {
+            const wrapped = withInstanceArg(tool, config.instances);
+            if (!wrapped) log(`skipping ${tool.name}: it already has an "${INSTANCE_ARG}" argument`);
+            return wrapped ? [[tool.name, wrapped] as const] : [];
+          }),
+        );
+      });
       // Let the next request retry instead of caching the failure.
       catalog.catch(() => {
         catalog = undefined;
@@ -107,7 +120,9 @@ function bundleTools(instances: InstanceConfig[]): Tool[] {
   return [
     {
       name: "bundle-instances",
-      description: "List the configured Dokploy instances: name, URL, description, protection, open connection.",
+      description:
+        "List the configured Dokploy instances (name, URL, description, protection, open connection) " +
+        "and the @dokploy/mcp version running them.",
       inputSchema: { type: "object", properties: {} },
       annotations: { title: "Bundle Instances", readOnlyHint: true },
     },
@@ -122,9 +137,10 @@ function bundleTools(instances: InstanceConfig[]): Tool[] {
   ];
 }
 
-function listInstances(instances: InstanceConfig[], pool: UpstreamPool): CallToolResult {
-  return textResult(
-    instances.map((instance) => ({
+async function listInstances(instances: InstanceConfig[], pool: UpstreamPool): Promise<CallToolResult> {
+  return textResult({
+    upstream: (await pool.upstream()).label,
+    instances: instances.map((instance) => ({
       name: instance.name,
       url: instance.url,
       description: instance.description ?? null,
@@ -132,7 +148,7 @@ function listInstances(instances: InstanceConfig[], pool: UpstreamPool): CallToo
       apiKey: instance.apiKeyEnv ? `from $${instance.apiKeyEnv}` : "in config",
       connected: pool.isRunning(instance.name),
     })),
-  );
+  });
 }
 
 async function checkInstances(

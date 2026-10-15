@@ -1,11 +1,9 @@
-import { createRequire } from "node:module";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { type BundleConfig, type InstanceConfig, resolveApiKey, toolFilterEnv } from "./config.js";
+import { resolveUpstream, type Upstream } from "./upstream-package.js";
 import { VERSION } from "./version.js";
-
-const require = createRequire(import.meta.url);
 
 /** Listing tools never calls the Dokploy API, so the catalog process gets a URL that goes nowhere. */
 const CATALOG_URL = "http://127.0.0.1:9";
@@ -21,10 +19,17 @@ export class UpstreamPool {
   readonly #config: BundleConfig;
   readonly #log: Log;
   readonly #clients = new Map<string, Promise<Client>>();
+  #upstream: Promise<Upstream> | undefined;
 
   constructor(config: BundleConfig, log: Log = (line) => process.stderr.write(`${line}\n`)) {
     this.#config = config;
     this.#log = log;
+  }
+
+  /** Resolved once per process: every instance runs the same upstream version. */
+  upstream(): Promise<Upstream> {
+    this.#upstream ??= resolveUpstream(this.#config.upstream, { log: this.#log });
+    return this.#upstream;
   }
 
   isRunning(instance: string): boolean {
@@ -88,10 +93,7 @@ export class UpstreamPool {
   }
 
   async #connect(label: string, env: Record<string, string>): Promise<Client> {
-    const { command, args } = this.#config.upstream ?? {
-      command: process.execPath,
-      args: [require.resolve("@dokploy/mcp/build/index.js")],
-    };
+    const { command, args } = await this.upstream();
     const transport = new StdioClientTransport({ command, args, env, stderr: "pipe" });
     transport.stderr?.on("data", (chunk: Buffer) => {
       for (const line of chunk.toString().split("\n")) if (line.trim()) this.#log(`[${label}] ${line}`);

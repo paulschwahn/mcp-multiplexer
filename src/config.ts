@@ -23,13 +23,18 @@ export interface ToolFilter {
   disabledTags: string[];
 }
 
+export type UpstreamConfig =
+  /** "bundled" (the version in package.json), "latest", a range like "~0.30.7", or an exact version. */
+  | { version: string }
+  /** Replaces @dokploy/mcp entirely; the tests point it at a stub. */
+  | { command: string; args: string[] };
+
 export interface BundleConfig {
   instances: InstanceConfig[];
   /** Environment for every upstream process, e.g. DOKPLOY_REDACT_ENV. */
   env: Record<string, string>;
   tools: ToolFilter;
-  /** Replaces the bundled @dokploy/mcp; the tests point it at a stub. */
-  upstream?: { command: string; args: string[] };
+  upstream: UpstreamConfig;
 }
 
 type Fail = (message: string) => never;
@@ -76,7 +81,7 @@ export function parseConfig(json: unknown, source = "config"): BundleConfig {
       enabledTags: stringArray(tools.enabledTags, `"tools.enabledTags"`, fail),
       disabledTags: stringArray(tools.disabledTags, `"tools.disabledTags"`, fail),
     },
-    upstream: root.upstream === undefined ? undefined : parseUpstream(root.upstream, fail),
+    upstream: root.upstream === undefined ? { version: "bundled" } : parseUpstream(root.upstream, fail),
   };
 }
 
@@ -121,8 +126,12 @@ function parseInstance(name: string, value: unknown, fail: Fail): InstanceConfig
   };
 }
 
-function parseUpstream(value: unknown, fail: Fail): { command: string; args: string[] } {
+function parseUpstream(value: unknown, fail: Fail): UpstreamConfig {
   const raw = asObject(value) ?? fail(`"upstream" must be an object`);
+  if (raw.command === undefined) {
+    return { version: optionalString(raw.version, `"upstream.version"`, fail) ?? "bundled" };
+  }
+  if (raw.version !== undefined) fail(`"upstream" takes "version" or "command", not both`);
   return {
     command: optionalString(raw.command, `"upstream.command"`, fail) ?? fail(`"upstream" needs a "command"`),
     args: stringArray(raw.args, `"upstream.args"`, fail),
